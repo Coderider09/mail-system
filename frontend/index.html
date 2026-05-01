@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="tg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Паём - Почтаи тоҷикӣ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0f172a;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Анимации */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideInLeft {
+            from { transform: translateX(-20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes glow {
+            0% { box-shadow: 0 0 0px rgba(59,130,246,0); }
+            100% { box-shadow: 0 0 20px rgba(59,130,246,0.3); }
+        }
+
+        /* Контейнер */
+        .app-container {
+            display: flex;
+            height: 100vh;
+            width: 100%;
+            animation: fadeIn 0.5s ease;
+        }
+
+        /* Боковая панель - тёмно-синяя */
+        .sidebar {
+            width: 280px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            padding: 20px 16px;
+            animation: slideInLeft 0.4s ease;
+        }
+
+        /* Логотип */
+        .logo {
+            padding: 0 12px 20px 12px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .logo h1 {
+            font-size: 22px;
+            font-weight: 500;
+            color: #e2e8f0;
+            letter-spacing: -0.3px;
+        }
+
+        .logo p {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        /* Кнопка Compose */
+        .compose-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            margin: 16px 12px 24px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(59,130,246,0.2);
+        }
+
+        .compose-btn:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(59,130,246,0.3);
+            animation: pulse 0.3s ease;
+        }
+
+        /* Навигация */
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 16px;
+            margin: 4px 8px;
+            border-radius: 12px;
+            cursor: pointer;
+            color: #94a3b8;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .nav-item:hover {
+            background: #334155;
+            color: #e2e8f0;
+            transform: translateX(4px);
+        }
+
+        .nav-item.active {
+            background: #3b82f6;
+            color: white;
+            box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+        }
+
+        /* Профиль пользователя */
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 12px;
+            border-top: 1px solid #334155;
+            margin-top: auto;
+            animation: slideInLeft 0.5s ease;
+        }
+
+        .user-avatar {
+            width: 42px;
+            height: 42px;
+            background: #3b82f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 18px;
+            transition: all 0.2s ease;
+        }
+
+        .user-avatar:hover {
+            transform: scale(1.05);
+            background: #2563eb;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #e2e8f0;
+        }
+
+        .user-email {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        .logout-icon {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+            color: #94a3b8;
+        }
+
+        .logout-icon:hover {
+            background: #334155;
+            color: #ef4444;
+            transform: scale(1.1);
+        }
+
+        /* Основная область */
+        .main-area {
+            flex: 1;
+            background: #0f172a;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            animation: fadeIn 0.4s ease;
+        }
+
+        /* Панель инструментов */
+        .toolbar {
+            padding: 16px 28px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .toolbar h2 {
+            font-size: 18px;
+            font-weight: 500;
+            color: #e2e8f0;
+        }
+
+        .folder-badge {
+            background: #334155;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        /* Список писем */
+        .email-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 8px;
+        }
+
+        .email-row {
+            display: flex;
+            align-items: center;
+            padding: 16px 24px;
+            margin: 4px 8px;
+            background: #1e293b;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            gap: 20px;
+            border: 1px solid #334155;
+            animation: slideInRight 0.3s ease;
+        }
+
+        .email-row:hover {
+            transform: translateY(-2px);
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .email-row.unread {
+            background: #2d3a5e;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .email-row.unread .sender {
+            font-weight: 700;
+            color: #e2e8f0;
+        }
+
+        .sender {
+            width: 180px;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+
+        .subject {
+            flex: 2;
+            font-size: 14px;
+            color: #cbd5e1;
+            font-weight: 500;
+        }
+
+        .preview {
+            flex: 3;
+            font-size: 13px;
+            color: #64748b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .date {
+            width: 100px;
+            font-size: 12px;
+            color: #64748b;
+            text-align: right;
+        }
+
+        /* Просмотр письма */
+        .detail-panel {
+            flex: 1;
+            background: #0f172a;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .detail-header {
+            padding: 28px 32px;
+            background: #1e293b;
+            border-radius: 20px;
+            margin: 16px;
+            border: 1px solid #334155;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: #3b82f6;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .back-btn:hover {
+            color: #60a5fa;
+            transform: translateX(-4px);
+        }
+
+        .reply-btn {
+            margin-top: 24px;
+            background: #3b82f6;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 30px;
+            cursor: pointer;
+            color: white;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .reply-btn:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+
+        /* Модальное окно */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .compose-card {
+            background: #1e293b;
+            border-radius: 24px;
+            width: 560px;
+            max-width: 90%;
+            padding: 28px;
+            animation: fadeIn 0.3s ease;
+            border: 1px solid #334155;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .compose-card h3 {
+            margin-bottom: 24px;
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+
+        .compose-card input,
+        .compose-card textarea {
+            width: 100%;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            font-family: inherit;
+            font-size: 14px;
+            background: #0f172a;
+            color: #e2e8f0;
+            transition: all 0.2s ease;
+        }
+
+        .compose-card input:focus,
+        .compose-card textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+
+        .compose-card input::placeholder,
+        .compose-card textarea::placeholder {
+            color: #64748b;
+        }
+
+        .send-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .send-btn:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+
+        .cancel-btn {
+            background: #334155;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 30px;
+            cursor: pointer;
+            color: #94a3b8;
+            transition: all 0.2s ease;
+        }
+
+        .cancel-btn:hover {
+            background: #475569;
+        }
+
+        /* Уведомления */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 12px 24px;
+            border-radius: 50px;
+            z-index: 2000;
+            animation: slideInRight 0.3s ease;
+            font-size: 14px;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px;
+            color: #64748b;
+            font-size: 15px;
+        }
+
+        /* Экран входа */
+        .auth-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #0f172a;
+        }
+
+        .auth-card {
+            background: #1e293b;
+            border-radius: 32px;
+            padding: 44px 40px;
+            width: 440px;
+            border: 1px solid #334155;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 0.5s ease;
+        }
+
+        .auth-card h2 {
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 28px;
+            font-weight: 500;
+            color: #e2e8f0;
+        }
+
+        .auth-subtitle {
+            text-align: center;
+            margin-bottom: 32px;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .auth-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 32px;
+            background: #0f172a;
+            padding: 6px;
+            border-radius: 60px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: transparent;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            color: #94a3b8;
+        }
+
+        .tab-btn.active {
+            background: #3b82f6;
+            color: white;
+            box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+        }
+
+        .auth-input {
+            width: 100%;
+            padding: 14px 16px;
+            margin-bottom: 18px;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            font-size: 14px;
+            background: #0f172a;
+            color: #e2e8f0;
+            transition: all 0.2s ease;
+        }
+
+        .auth-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+
+        .auth-input::placeholder {
+            color: #64748b;
+        }
+
+        .auth-btn {
+            width: 100%;
+            padding: 14px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .auth-btn:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+
+        scrollbar-width: thin;
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3b82f6;
+        }
+    </style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+    const API = 'http://localhost:8000/api';
+    let token = null;
+    let user = null;
+    let currentView = 'inbox';
+
+    function showToast(msg, err = false) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.style.borderLeft = err ? '4px solid #ef4444' : '4px solid #3b82f6';
+        toast.innerText = err ? `❌ ${msg}` : `✅ ${msg}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    async function apiCall(endpoint, opts = {}) {
+        const res = await fetch(`${API}${endpoint}`, {
+            ...opts,
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token && { 'Authorization': `Bearer ${token}` }),
+                ...opts.headers
+            }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Хатогӣ');
+        return data;
+    }
+
+    async function register(email, username, password) {
+        try {
+            const data = await apiCall('/register', { method: 'POST', body: JSON.stringify({ email, username, password }) });
+            if (data.success) {
+                showToast('Бақайдгирӣ бомуваффақият! Лутфан ворид шавед.');
+                return true;
+            }
+        } catch(e) { showToast(e.message, true); return false; }
+    }
+
+    async function login(email, password) {
+        try {
+            const data = await apiCall('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+            if (data.success) {
+                token = data.access_token;
+                user = data.user;
+                localStorage.setItem('token', token);
+                localStorage.setItem('user', JSON.stringify(user));
+                showToast(`Хуш омадед, ${user.username}`);
+                renderMailApp();
+                await loadInbox();
+                return true;
+            }
+        } catch(e) { showToast('Номи корбарӣ ё парол нодуруст', true); return false; }
+    }
+
+    function logout() {
+        token = null;
+        user = null;
+        localStorage.clear();
+        renderAuth();
+    }
+
+    async function sendEmail(to, subject, body) {
+        try {
+            await apiCall('/send', { method: 'POST', body: JSON.stringify({ to, subject, body, from: user.email }) });
+            showToast('Паём фиристода шуд');
+            closeModal();
+            if (currentView === 'inbox') await loadInbox();
+            else await loadSent();
+        } catch(e) { showToast(e.message, true); }
+    }
+
+    async function loadInbox() {
+        try {
+            const emails = await apiCall('/inbox');
+            renderEmailList(emails, true);
+        } catch(e) { console.error(e); }
+    }
+
+    async function loadSent() {
+        try {
+            const emails = await apiCall('/sent');
+            renderEmailList(emails, false);
+        } catch(e) { console.error(e); }
+    }
+
+    async function viewEmail(id) {
+        try {
+            const email = await apiCall(`/email/${id}`);
+            renderDetailView(email);
+        } catch(e) { showToast(e.message, true); }
+    }
+
+    function renderAuth() {
+        document.getElementById('app').innerHTML = `
+            <div class="auth-wrapper">
+                <div class="auth-card">
+                    <h2>📧 Паём</h2>
+                    <div class="auth-subtitle">Системаи почтаи тоҷикӣ</div>
+                    <div class="auth-tabs">
+                        <button class="tab-btn active" onclick="switchTab('login')">Воридшавӣ</button>
+                        <button class="tab-btn" onclick="switchTab('register')">Бақайдгирӣ</button>
+                    </div>
+                    <div id="loginPanel">
+                        <input class="auth-input" type="email" id="loginEmail" placeholder="Почтаи электронӣ">
+                        <input class="auth-input" type="password" id="loginPass" placeholder="Рамз">
+                        <button class="auth-btn" onclick="login(document.getElementById('loginEmail').value, document.getElementById('loginPass').value)">Ворид шавед</button>
+                    </div>
+                    <div id="registerPanel" style="display:none;">
+                        <input class="auth-input" type="text" id="regName" placeholder="Номи корбарӣ">
+                        <input class="auth-input" type="email" id="regEmail" placeholder="Почтаи электронӣ">
+                        <input class="auth-input" type="password" id="regPass" placeholder="Рамз">
+                        <button class="auth-btn" onclick="register(document.getElementById('regEmail').value, document.getElementById('regName').value, document.getElementById('regPass').value)">Қайд кардан</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderEmailList(emails, isInbox) {
+        const listDiv = document.querySelector('.email-list');
+        if (!listDiv) return;
+        if (!emails.length) {
+            listDiv.innerHTML = '<div class="empty-state">📭 Ҳоло ҳеҷ паёме нест</div>';
+            return;
+        }
+        listDiv.innerHTML = emails.map(e => `
+            <div class="email-row ${e.is_read ? '' : 'unread'}" onclick="viewEmail(${e.id})">
+                <div class="sender">${isInbox ? e.sender_name : '→ ' + e.sender_name}</div>
+                <div class="subject">${e.subject || '(бе мавзӯъ)'}</div>
+                <div class="preview">${e.body_preview || ''}</div>
+                <div class="date">${new Date(e.sent_at).toLocaleDateString('tg')}</div>
+            </div>
+        `).join('');
+    }
+
+    function renderDetailView(email) {
+        const mainDiv = document.querySelector('.main-area');
+        mainDiv.innerHTML = `
+            <div class="detail-panel">
+                <div class="detail-header">
+                    <button class="back-btn" onclick="backToList()">← Бозгашт</button>
+                    <h2 style="margin-bottom:16px; color:#e2e8f0;">${email.subject || '(бе мавзӯъ)'}</h2>
+                    <div style="margin:16px 0; padding:16px; background:#0f172a; border-radius:16px;">
+                        <div style="color:#94a3b8;"><strong style="color:#e2e8f0;">Аз:</strong> ${email.sender_name} &lt;${email.sender_email}&gt;</div>
+                        <div style="margin-top:8px; color:#94a3b8;"><strong style="color:#e2e8f0;">Ба:</strong> ${email.recipient_email}</div>
+                        <div style="margin-top:8px; color:#94a3b8;"><strong style="color:#e2e8f0;">Сана:</strong> ${new Date(email.sent_at).toLocaleString('tg')}</div>
+                    </div>
+                    <div style="white-space:pre-wrap; line-height:1.6; color:#cbd5e1;">${email.body}</div>
+                    <button class="reply-btn" onclick="replyToEmail(${email.id})">✏️ Ҷавоб додан</button>
+                </div>
+            </div>
+        `;
+    }
+
+    async function backToList() {
+        renderMailApp();
+        if (currentView === 'inbox') await loadInbox();
+        else await loadSent();
+    }
+
+    async function replyToEmail(id) {
+        const email = await apiCall(`/email/${id}`);
+        showComposeModal(email.sender_email, `Re: ${email.subject}`, `\n\n--- Паёми аслӣ аз ${email.sender_name} ---\n${email.body}`);
+    }
+
+    function renderMailApp() {
+        const initial = user.username.charAt(0).toUpperCase();
+        document.getElementById('app').innerHTML = `
+            <div class="app-container">
+                <div class="sidebar">
+                    <div class="logo">
+                        <h1>Паём</h1>
+                        <p>почтаи тоҷикӣ</p>
+                    </div>
+                    <button class="compose-btn" onclick="showComposeModal()">✏️ Навиштани паём</button>
+                    <div>
+                        <div class="nav-item ${currentView === 'inbox' ? 'active' : ''}" onclick="switchView('inbox')">📥 Қуттии воридот</div>
+                        <div class="nav-item ${currentView === 'sent' ? 'active' : ''}" onclick="switchView('sent')">📤 Фиристодаҳо</div>
+                    </div>
+                    <div class="user-profile">
+                        <div class="user-avatar">${initial}</div>
+                        <div class="user-info">
+                            <div class="user-name">${user.username}</div>
+                            <div class="user-email">${user.email}</div>
+                        </div>
+                        <button class="logout-icon" onclick="logout()">🚪</button>
+                    </div>
+                </div>
+                <div class="main-area">
+                    <div class="toolbar">
+                        <h2>${currentView === 'inbox' ? 'Қуттии воридот' : 'Фиристодаҳо'}</h2>
+                        <div class="folder-badge">${currentView === 'inbox' ? '📥' : '📤'}</div>
+                    </div>
+                    <div class="email-list"><div class="empty-state">Боргирӣ...</div></div>
+                </div>
+            </div>
+            <div id="composeModal" class="modal">
+                <div class="compose-card">
+                    <h3>Паёми нав</h3>
+                    <input type="email" id="compTo" placeholder="Ба (почтаи электронӣ)">
+                    <input type="text" id="compSubj" placeholder="Мавзӯъ">
+                    <textarea id="compBody" rows="6" placeholder="Матни паём..."></textarea>
+                    <div style="display:flex; gap:12px; justify-content:flex-end;">
+                        <button class="cancel-btn" onclick="closeModal()">Бекор</button>
+                        <button class="send-btn" onclick="sendFromModal()">Фиристодан</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function showComposeModal(to = '', subj = '', body = '') {
+        const mod = document.getElementById('composeModal');
+        if (mod) {
+            document.getElementById('compTo').value = to;
+            document.getElementById('compSubj').value = subj;
+            document.getElementById('compBody').value = body;
+            mod.classList.add('active');
+        }
+    }
+
+    function closeModal() {
+        const mod = document.getElementById('composeModal');
+        if (mod) mod.classList.remove('active');
+    }
+
+    async function sendFromModal() {
+        const to = document.getElementById('compTo').value;
+        const subj = document.getElementById('compSubj').value;
+        const body = document.getElementById('compBody').value;
+        await sendEmail(to, subj, body);
+    }
+
+    async function switchView(view) {
+        currentView = view;
+        renderMailApp();
+        if (view === 'inbox') await loadInbox();
+        else await loadSent();
+    }
+
+    window.switchTab = (tab) => {
+        const loginP = document.getElementById('loginPanel');
+        const regP = document.getElementById('registerPanel');
+        const btns = document.querySelectorAll('.tab-btn');
+        if (tab === 'login') {
+            loginP.style.display = 'block';
+            regP.style.display = 'none';
+            btns[0].classList.add('active');
+            btns[1].classList.remove('active');
+        } else {
+            loginP.style.display = 'none';
+            regP.style.display = 'block';
+            btns[0].classList.remove('active');
+            btns[1].classList.add('active');
+        }
+    };
+
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    if (savedToken && savedUser) {
+        token = savedToken;
+        user = JSON.parse(savedUser);
+        renderMailApp();
+        loadInbox();
+    } else {
+        renderAuth();
+    }
+</script>
+</body>
+</html>
