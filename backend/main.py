@@ -1,14 +1,17 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-import sqlite3
+import os
 import hashlib
 import secrets
 from datetime import datetime
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
 
 app = FastAPI()
 
-# Разрешаем запросы с любых источников
+# CORS - разрешаем запросы с фронтенда
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,36 +20,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ============ БАЗА ДАННЫХ ============
-def get_db():
-    conn = sqlite3.connect('mail.db', check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+# ============ ПОДКЛЮЧЕНИЕ К БАЗЕ ДАННЫХ ============
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:postgres@localhost/maildb')
 
-# Создаём таблицы
-conn = get_db()
-conn.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE,
-        username TEXT,
-        password TEXT,
-        created_at TEXT
-    )
-''')
-conn.execute('''
-    CREATE TABLE IF NOT EXISTS emails (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        sender TEXT,
-        recipient TEXT,
-        subject TEXT,
-        content TEXT,
-        is_read INTEGER DEFAULT 0,
-        created_at TEXT
-    )
-''')
-conn.commit()
-conn.close()
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# ============ МОДЕЛИ ДАННЫХ ============
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, nullable=False)
+    password = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Email(Base):
+    __tablename__ = "emails"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    sender = Column(String, nullable=False)
+    recipient = Column(String, nullable=False)
+    subject = Column(String, default="")
+    content = Column(Text, default="")
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# Создаем таблицы
+Base.metadata.create_all(bind=engine)
 
 # ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ============
 def hash_password(password: str) -> str:
@@ -55,42 +58,31 @@ def hash_password(password: str) -> str:
 def generate_token() -> str:
     return secrets.token_hex(32)
 
-# ============ ГЛАВНАЯ СТРАНИЦА ============
-@app.get("/")
-def root():
-    return {"message": "Mail System API is running", "docs": "/docs", "admin": "/admin"}
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-# ============ РЕГИСТРАЦИЯ ============
+# ============ API ============
 @app.post("/api/register")
-def register(email: str, username: str, password: str):
-    conn = get_db()
-    
-    existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+def register(email: str, username: str, password: str, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.email == email).first()
     if existing:
-        conn.close()
         return {"success": False, "error": "Email already exists"}
     
     hashed = hash_password(password)
-    conn.execute(
-        "INSERT INTO users (email, username, password, created_at) VALUES (?, ?, ?, ?)",
-        (email, username, hashed, datetime.now().isoformat())
-    )
-    conn.commit()
-    conn.close()
+    new_user = User(email=email, username=username, password=hashed, created_at=datetime.utcnow())
+    db.add(new_user)
+    db.commit()
     
     return {"success": True, "message": "User created"}
 
-# ============ ВХОД ============
 @app.post("/api/login")
-def login(email: str, password: str):
-    conn = get_db()
+def login(email: str, password: str, db: Session = Depends(get_db)):
     hashed = hash_password(password)
-    
-    user = conn.execute(
-        "SELECT id, email, username FROM users WHERE email = ? AND password = ?",
-        (email, hashed)
-    ).fetchone()
-    conn.close()
+    user = db.query(User).filter(User.email == email, User.password == hashed).first()
     
     if not user:
         return {"success": False, "error": "Invalid credentials"}
@@ -99,253 +91,102 @@ def login(email: str, password: str):
     return {
         "success": True,
         "access_token": token,
-        "user": {"id": user[0], "email": user[1], "username": user[2]}
+        "user": {"id": user.id, "email": user.email, "username": user.username}
     }
 
-# ============ ОТПРАВКА ПИСЬМА ============
 @app.post("/api/send")
-def send_email(to: str, subject: str, body: str, from_email: str = "user@test.com"):
-    conn = get_db()
-    conn.execute(
-        "INSERT INTO emails (sender, recipient, subject, content, created_at) VALUES (?, ?, ?, ?, ?)",
-        (from_email, to, subject, body, datetime.now().isoformat())
-    )
-    conn.commit()
-    conn.close()
+def send_email(to: str, subject: str, body: str, from_email: str = "user@test.com", db: Session = Depends(get_db)):
+    new_email = Email(sender=from_email, recipient=to, subject=subject, content=body, created_at=datetime.utcnow())
+    db.add(new_email)
+    db.commit()
     return {"success": True}
 
-# ============ ПОЛУЧЕНИЕ ПИСЕМ ============
 @app.get("/api/inbox")
-def get_inbox():
-    conn = get_db()
-    emails = conn.execute(
-        "SELECT id, sender, subject, content, is_read, created_at FROM emails ORDER BY id DESC"
-    ).fetchall()
-    conn.close()
+def get_inbox(db: Session = Depends(get_db)):
+    emails = db.query(Email).order_by(Email.id.desc()).all()
     
     result = []
     for row in emails:
         result.append({
-            "id": row[0],
-            "sender_email": row[1],
-            "sender_name": row[1].split('@')[0] if '@' in row[1] else row[1],
-            "subject": row[2] or "",
-            "body_preview": (row[3] or "")[:100],
-            "is_read": bool(row[4]),
-            "sent_at": row[5]
+            "id": row.id,
+            "sender_email": row.sender,
+            "sender_name": row.sender.split('@')[0] if '@' in row.sender else row.sender,
+            "subject": row.subject or "",
+            "body_preview": (row.content or "")[:100],
+            "is_read": row.is_read,
+            "sent_at": row.created_at.isoformat() if row.created_at else ""
         })
     return result
 
-# ============ ПРОСМОТР ПИСЬМА ============
 @app.get("/api/email/{email_id}")
-def get_email(email_id: int):
-    conn = get_db()
-    conn.execute("UPDATE emails SET is_read = 1 WHERE id = ?", (email_id,))
-    conn.commit()
-    
-    email = conn.execute(
-        "SELECT id, sender, recipient, subject, content, created_at FROM emails WHERE id = ?",
-        (email_id,)
-    ).fetchone()
-    conn.close()
+def get_email(email_id: int, db: Session = Depends(get_db)):
+    email = db.query(Email).filter(Email.id == email_id).first()
     
     if not email:
         return {"error": "Not found"}
     
+    email.is_read = True
+    db.commit()
+    
     return {
-        "id": email[0],
-        "sender_email": email[1],
-        "sender_name": email[1].split('@')[0] if '@' in email[1] else email[1],
-        "recipient_email": email[2],
-        "subject": email[3] or "",
-        "body": email[4] or "",
+        "id": email.id,
+        "sender_email": email.sender,
+        "sender_name": email.sender.split('@')[0] if '@' in email.sender else email.sender,
+        "recipient_email": email.recipient,
+        "subject": email.subject or "",
+        "body": email.content or "",
         "is_read": True,
-        "sent_at": email[5]
+        "sent_at": email.created_at.isoformat() if email.created_at else ""
     }
 
-# ============ АДМИН-ПАНЕЛЬ (РАБОТАЕТ!) ============
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_panel():
-    conn = get_db()
+def admin_panel(db: Session = Depends(get_db)):
+    total_users = db.query(User).count()
+    total_emails = db.query(Email).count()
+    unread_emails = db.query(Email).filter(Email.is_read == False).count()
     
-    # Получаем всех пользователей
-    users = conn.execute("SELECT id, email, username, created_at FROM users ORDER BY id DESC").fetchall()
+    users = db.query(User).order_by(User.id.desc()).all()
+    emails = db.query(Email).order_by(Email.id.desc()).limit(30).all()
     
-    # Получаем последние письма
-    emails = conn.execute(
-        "SELECT id, sender, recipient, subject, created_at FROM emails ORDER BY id DESC LIMIT 30"
-    ).fetchall()
+    users_rows = ""
+    for u in users:
+        users_rows += f"<tr><td>{u.id}</td><td>{u.email}</td><td>{u.username}</td><td>{u.created_at}</td></tr>"
     
-    # Статистика
-    total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-    total_emails = conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
-    unread_emails = conn.execute("SELECT COUNT(*) FROM emails WHERE is_read = 0").fetchone()[0]
+    emails_rows = ""
+    for e in emails:
+        emails_rows += f"<tr><td>{e.id}</td><td>{e.sender}</td><td>{e.recipient}</td><td>{e.subject or '(no subject)'}</td><td>{str(e.created_at)[:16]}</td></tr>"
     
-    conn.close()
-    
-    # Создаём HTML страницу
     html = f"""
     <!DOCTYPE html>
     <html>
     <head>
-        <meta charset="UTF-8">
-        <title>Admin Panel - Mail System</title>
+        <title>Admin Panel</title>
         <style>
-            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body {{ 
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-                background: #0f172a; 
-                color: #e2e8f0; 
-                padding: 40px;
-            }}
-            .container {{ max-width: 1400px; margin: 0 auto; }}
-            h1 {{ color: #3b82f6; margin-bottom: 24px; }}
-            h2 {{ color: #94a3b8; margin: 32px 0 16px 0; font-size: 20px; }}
-            .stats {{ display: flex; gap: 20px; margin-bottom: 40px; flex-wrap: wrap; }}
-            .stat-card {{
-                background: #1e293b;
-                padding: 20px;
-                border-radius: 12px;
-                border: 1px solid #334155;
-                min-width: 160px;
-            }}
-            .stat-number {{ font-size: 36px; font-weight: bold; color: #3b82f6; }}
-            .stat-label {{ color: #94a3b8; margin-top: 8px; }}
-            table {{
-                width: 100%;
-                background: #1e293b;
-                border-radius: 12px;
-                overflow: hidden;
-                border-collapse: collapse;
-            }}
-            th, td {{
-                padding: 12px 16px;
-                text-align: left;
-                border-bottom: 1px solid #334155;
-            }}
-            th {{ background: #334155; color: #e2e8f0; }}
-            .back-link {{
-                display: inline-block;
-                margin-top: 40px;
-                color: #3b82f6;
-                text-decoration: none;
-            }}
-            .back-link:hover {{ text-decoration: underline; }}
-            .badge {{
-                background: #22c55e;
-                color: white;
-                padding: 2px 8px;
-                border-radius: 20px;
-                font-size: 11px;
-            }}
+            body {{ font-family: Arial; background: #0f172a; color: #e2e8f0; padding: 40px; }}
+            .stats {{ display: flex; gap: 20px; }}
+            .stat-card {{ background: #1e293b; padding: 20px; border-radius: 12px; }}
+            .stat-number {{ font-size: 36px; color: #3b82f6; }}
+            table {{ width: 100%; background: #1e293b; border-collapse: collapse; }}
+            th, td {{ padding: 10px; text-align: left; border-bottom: 1px solid #334155; }}
         </style>
     </head>
     <body>
-        <div class="container">
-            <h1>🔐 Admin Panel - Mail System</h1>
-            
-            <div class="stats">
-                <div class="stat-card">
-                    <div class="stat-number">{total_users}</div>
-                    <div class="stat-label">👥 Total Users</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{total_emails}</div>
-                    <div class="stat-label">✉️ Total Emails</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{unread_emails}</div>
-                    <div class="stat-label">📖 Unread Emails</div>
-                </div>
-            </div>
-            
-            <h2>📊 Users List</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Email</th>
-                        <th>Username</th>
-                        <th>Created At</th>
-                    </tr>
-                </thead>
-                <tbody>
-    """
-    
-    for user in users:
-        html += f"""
-                    <tr>
-                        <td>{user['id']}</td>
-                        <td>{user['email']}</td>
-                        <td>{user['username']}</td>
-                        <td>{user['created_at'] or 'Unknown'}</td>
-                    </tr>
-        """
-    
-    html += """
-                </tbody>
-            </table>
-            
-            <h2>📧 Recent Emails (last 30)</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>From</th>
-                        <th>To</th>
-                        <th>Subject</th>
-                        <th>Date</th>
-                    </tr>
-                </thead>
-                <tbody>
-    """
-    
-    for email in emails:
-        html += f"""
-                    <tr>
-                        <td>{email['id']}</td>
-                        <td>{email['sender'][:30]}</td>
-                        <td>{email['recipient'][:30]}</td>
-                        <td>{email['subject'] or '(no subject)'}</td>
-                        <td>{email['created_at'][:16] if email['created_at'] else 'Unknown'}</td>
-                    </tr>
-        """
-    
-    html += """
-                </tbody>
-            </table>
-            
-            <a href="/" class="back-link">← Back to Mail System</a>
+        <h1>Admin Panel</h1>
+        <div class="stats">
+            <div class="stat-card"><div class="stat-number">{total_users}</div><div>Users</div></div>
+            <div class="stat-card"><div class="stat-number">{total_emails}</div><div>Emails</div></div>
+            <div class="stat-card"><div class="stat-number">{unread_emails}</div><div>Unread</div></div>
         </div>
+        <h2>Users</h2>
+        <table><tr><th>ID</th><th>Email</th><th>Username</th><th>Created</th></tr>{users_rows}</table>
+        <h2>Recent Emails</h2>
+        <table><tr><th>ID</th><th>From</th><th>To</th><th>Subject</th><th>Date</th></tr>{emails_rows}</table>
+        <a href="/">Back to site</a>
     </body>
     </html>
     """
-    
     return HTMLResponse(content=html)
 
-# ============ API ДЛЯ АДМИНКИ ============
-@app.get("/api/admin/stats")
-def admin_stats():
-    conn = get_db()
-    users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-    emails = conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
-    unread = conn.execute("SELECT COUNT(*) FROM emails WHERE is_read = 0").fetchone()[0]
-    conn.close()
-    return {"users": users, "emails": emails, "unread": unread}
-
-@app.get("/api/admin/users")
-def admin_users():
-    conn = get_db()
-    users = conn.execute("SELECT id, email, username, created_at FROM users ORDER BY id DESC").fetchall()
-    conn.close()
-    return [{"id": u[0], "email": u[1], "username": u[2], "created_at": u[3]} for u in users]
-
-# ============ ЗАПУСК ============
 if __name__ == "__main__":
     import uvicorn
-    print("=" * 50)
-    print("✅ MAIL SYSTEM RUNNING")
-    print("📧 http://localhost:8000")
-    print("🔐 Admin: http://localhost:8000/admin")
-    print("=" * 50)
     uvicorn.run(app, host="0.0.0.0", port=8000)
