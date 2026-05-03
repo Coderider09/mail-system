@@ -7,7 +7,7 @@ from datetime import datetime
 
 app = FastAPI()
 
-# Настройка CORS
+# Настройка CORS (разрешаем запросы с фронтенда)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,13 +16,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ============ БАЗА ДАННЫХ ============
+# ============ БАЗА ДАННЫХ (SQLite) ============
+DB_PATH = "mail.db"
+
 def get_db():
-    conn = sqlite3.connect('mail.db', check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
-# Создаём таблицы
+# Создаем таблицы
 conn = get_db()
 conn.execute('''
     CREATE TABLE IF NOT EXISTS users (
@@ -51,16 +53,18 @@ conn.close()
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
-# ============ РЕГИСТРАЦИЯ ============
+# ============ API АУТЕНТИФИКАЦИИ ============
 @app.post("/api/register")
 def register(email: str, username: str, password: str):
     conn = get_db()
     
+    # Проверка существования пользователя
     existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
     if existing:
         conn.close()
         return {"success": False, "error": "Email already exists"}
     
+    # Создание пользователя
     hashed = hash_password(password)
     conn.execute(
         "INSERT INTO users (email, username, password, created_at) VALUES (?, ?, ?, ?)",
@@ -69,6 +73,7 @@ def register(email: str, username: str, password: str):
     conn.commit()
     conn.close()
     
+    # Генерируем токен
     token = secrets.token_hex(32)
     return {
         "success": True,
@@ -76,7 +81,6 @@ def register(email: str, username: str, password: str):
         "user": {"email": email, "username": username}
     }
 
-# ============ ВХОД ============
 @app.post("/api/login")
 def login(email: str, password: str):
     conn = get_db()
@@ -98,7 +102,7 @@ def login(email: str, password: str):
         "user": {"id": user[0], "email": user[1], "username": user[2]}
     }
 
-# ============ ОТПРАВКА ПИСЬМА ============
+# ============ API ПИСЕМ ============
 @app.post("/api/send")
 def send_email(to: str, subject: str, body: str, from_email: str = "user@test.com"):
     conn = get_db()
@@ -110,7 +114,6 @@ def send_email(to: str, subject: str, body: str, from_email: str = "user@test.co
     conn.close()
     return {"success": True, "message": "Email sent"}
 
-# ============ ПОЛУЧЕНИЕ ПИСЕМ ============
 @app.get("/api/inbox")
 def get_inbox():
     conn = get_db()
@@ -132,7 +135,6 @@ def get_inbox():
         })
     return result
 
-# ============ ПРОСМОТР ПИСЬМА ============
 @app.get("/api/email/{email_id}")
 def get_email(email_id: int):
     conn = get_db()
