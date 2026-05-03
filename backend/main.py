@@ -1,15 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 import sqlite3
 import hashlib
 import secrets
 from datetime import datetime
-import os
 
 app = FastAPI()
 
-# Настройка CORS (разрешаем запросы с фронтенда)
+# Настройка CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,14 +17,12 @@ app.add_middleware(
 )
 
 # ============ БАЗА ДАННЫХ (SQLite) ============
-DB_PATH = "mail.db"
-
 def get_db():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect('mail.db', check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
-# Создаем таблицы
+# Создаём таблицы
 conn = get_db()
 conn.execute('''
     CREATE TABLE IF NOT EXISTS users (
@@ -60,13 +56,11 @@ def hash_password(password: str) -> str:
 def register(email: str, username: str, password: str):
     conn = get_db()
     
-    # Проверка существования пользователя
     existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
     if existing:
         conn.close()
         return {"success": False, "error": "Email already exists"}
     
-    # Создание пользователя
     hashed = hash_password(password)
     conn.execute(
         "INSERT INTO users (email, username, password, created_at) VALUES (?, ?, ?, ?)",
@@ -75,7 +69,6 @@ def register(email: str, username: str, password: str):
     conn.commit()
     conn.close()
     
-    # Генерируем токен (для простоты используем email, но в реальном проекте нужен JWT)
     token = secrets.token_hex(32)
     return {
         "success": True,
@@ -95,8 +88,7 @@ def login(email: str, password: str):
     conn.close()
     
     if not user:
-        # Эта точная формулировка помогает отловить ошибку на фронтенде
-        return {"success": False, "error": "Invalid credentials"} 
+        return {"success": False, "error": "Invalid credentials"}
     
     token = secrets.token_hex(32)
     return {
