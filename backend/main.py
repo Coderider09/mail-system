@@ -16,7 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ============ БАЗА ДАННЫХ (SQLite) ============
+# ============ БАЗА ДАННЫХ ============
 def get_db():
     conn = sqlite3.connect('mail.db', check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -51,7 +51,7 @@ conn.close()
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
-# ============ API АУТЕНТИФИКАЦИИ ============
+# ============ РЕГИСТРАЦИЯ ============
 @app.post("/api/register")
 def register(email: str, username: str, password: str):
     conn = get_db()
@@ -76,6 +76,7 @@ def register(email: str, username: str, password: str):
         "user": {"email": email, "username": username}
     }
 
+# ============ ВХОД ============
 @app.post("/api/login")
 def login(email: str, password: str):
     conn = get_db()
@@ -97,7 +98,7 @@ def login(email: str, password: str):
         "user": {"id": user[0], "email": user[1], "username": user[2]}
     }
 
-# ============ API ПИСЕМ ============
+# ============ ОТПРАВКА ПИСЬМА ============
 @app.post("/api/send")
 def send_email(to: str, subject: str, body: str, from_email: str = "user@test.com"):
     conn = get_db()
@@ -109,6 +110,7 @@ def send_email(to: str, subject: str, body: str, from_email: str = "user@test.co
     conn.close()
     return {"success": True, "message": "Email sent"}
 
+# ============ ПОЛУЧЕНИЕ ПИСЕМ ============
 @app.get("/api/inbox")
 def get_inbox():
     conn = get_db()
@@ -130,6 +132,7 @@ def get_inbox():
         })
     return result
 
+# ============ ПРОСМОТР ПИСЬМА ============
 @app.get("/api/email/{email_id}")
 def get_email(email_id: int):
     conn = get_db()
